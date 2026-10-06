@@ -90,18 +90,18 @@ export default function Header({
           />
         </div>
 
-        {/* Export dropdown */}
+        {/* Export dropdown — works on both desktop and mobile */}
         <div ref={exportRef} className="relative shrink-0">
           <button
             onClick={() => setExportOpen(!exportOpen)}
-            className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 transition-all duration-150 hover:border-white/20 hover:text-zinc-200 active:scale-95 sm:flex"
-            title="Export Vault"
-            aria-label="Export Vault"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 transition-all duration-150 hover:border-white/20 hover:text-zinc-200 active:scale-95"
+            title="Export / Import"
+            aria-label="Export / Import"
           >
-            <Download className="h-4.5 w-4.5" />
+            <Download className="h-[18px] w-[18px]" />
           </button>
           {exportOpen && (
-            <div className="absolute right-0 top-12 w-48 rounded-xl border border-white/10 bg-zinc-900 py-2 shadow-2xl">
+            <div className="absolute right-0 top-12 z-40 w-56 rounded-xl border border-white/10 bg-zinc-900 py-2 shadow-2xl">
               <p className="px-3 pb-1.5 pt-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
                 Export Format
               </p>
@@ -133,16 +133,6 @@ export default function Header({
           )}
         </div>
 
-        {/* Import button (mobile) */}
-        <button
-          onClick={onImport}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-zinc-400 transition-all duration-150 hover:border-white/20 hover:text-zinc-200 active:scale-95 sm:hidden"
-          title="Import Backup"
-          aria-label="Import Backup"
-        >
-          <Upload className="h-4.5 w-4.5" />
-        </button>
-
         {/* Add provider */}
         <button
           onClick={onAddProvider}
@@ -160,7 +150,7 @@ export default function Header({
           title="Trash"
           aria-label="Trash"
         >
-          <Trash2 className="h-4.5 w-4.5" />
+          <Trash2 className="h-[18px] w-[18px]" />
           {trashCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
               {trashCount > 99 ? '99+' : trashCount}
@@ -218,18 +208,6 @@ export default function Header({
             </div>
           )}
         </div>
-      </div>
-
-      {/* Mobile export bar */}
-      <div className="flex items-center gap-2 border-t border-white/5 px-3 py-2 sm:hidden">
-        <button
-          onClick={() => setExportOpen(!exportOpen)}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-800"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export
-        </button>
-        <div className="relative flex-1" />
       </div>
     </header>
   );

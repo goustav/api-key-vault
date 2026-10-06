@@ -80,7 +80,7 @@ export default function ImportModal({ open, onImport, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-scaleIn">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Import Backup</h2>
           <button

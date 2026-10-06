@@ -1,6 +1,5 @@
-import { jsPDF } from 'jspdf';
 import type { ProviderWithKeys } from '@/lib/supabase';
-import { maskKey } from '@/lib/utils';
+import { maskKey, safeHttpUrl } from '@/lib/utils';
 
 export type ExportFormat = 'md' | 'txt' | 'csv' | 'pdf';
 
@@ -10,8 +9,10 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function exportVault(providers: ProviderWithKeys[], format: ExportFormat) {
@@ -84,11 +85,15 @@ function exportText(providers: ProviderWithKeys[]): string {
   return txt;
 }
 
-function escapeCSV(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
+function escapeCSVCell(value: string): string {
+  let escaped = value;
+  if (/^[=+\-@\t\r]/.test(escaped)) {
+    escaped = `'${escaped}`;
   }
-  return value;
+  if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n')) {
+    return `"${escaped.replace(/"/g, '""')}"`;
+  }
+  return escaped;
 }
 
 function exportCSV(providers: ProviderWithKeys[]): string {
@@ -97,22 +102,22 @@ function exportCSV(providers: ProviderWithKeys[]): string {
     for (const k of p.api_keys) {
       if (k.is_deleted) continue;
       csv += [
-        escapeCSV(p.name),
-        escapeCSV(k.account_label),
-        escapeCSV(k.note ?? ''),
-        escapeCSV(k.key_value),
-        escapeCSV(p.dashboard_url ?? ''),
+        escapeCSVCell(p.name),
+        escapeCSVCell(k.account_label),
+        escapeCSVCell(k.note ?? ''),
+        escapeCSVCell(k.key_value),
+        escapeCSVCell(p.dashboard_url ?? ''),
         p.is_pinned ? 'Yes' : 'No',
         k.created_at,
       ].join(',') + '\n';
     }
     if (p.api_keys.filter((k) => !k.is_deleted).length === 0) {
       csv += [
-        escapeCSV(p.name),
+        escapeCSVCell(p.name),
         '',
         '',
         '',
-        escapeCSV(p.dashboard_url ?? ''),
+        escapeCSVCell(p.dashboard_url ?? ''),
         p.is_pinned ? 'Yes' : 'No',
         p.created_at,
       ].join(',') + '\n';
@@ -121,7 +126,8 @@ function exportCSV(providers: ProviderWithKeys[]): string {
   return csv;
 }
 
-function exportPDF(providers: ProviderWithKeys[], timestamp: string) {
+async function exportPDF(providers: ProviderWithKeys[], timestamp: string) {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -153,14 +159,16 @@ function exportPDF(providers: ProviderWithKeys[], timestamp: string) {
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     const title = p.is_pinned ? `[PINNED] ${p.name}` : p.name;
-    doc.text(title, margin, y);
-    y += 6;
+    const titleLines = doc.splitTextToSize(title, contentWidth);
+    doc.text(titleLines, margin, y);
+    y += 6 * titleLines.length;
 
     if (p.dashboard_url) {
       doc.setFontSize(9);
       doc.setTextColor(14, 165, 233);
-      doc.text(`Dashboard: ${p.dashboard_url}`, margin, y);
-      y += 5;
+      const dashLines = doc.splitTextToSize(`Dashboard: ${p.dashboard_url}`, contentWidth);
+      doc.text(dashLines, margin, y);
+      y += 5 * dashLines.length;
     }
 
     if (p.api_keys.filter((k) => !k.is_deleted).length === 0) {
@@ -178,20 +186,23 @@ function exportPDF(providers: ProviderWithKeys[], timestamp: string) {
 
         doc.setFontSize(10);
         doc.setTextColor(30, 41, 59);
-        doc.text(`Account: ${k.account_label}`, margin + 5, y);
-        y += 5;
+        const acctLines = doc.splitTextToSize(`Account: ${k.account_label}`, contentWidth - 5);
+        doc.text(acctLines, margin + 5, y);
+        y += 5 * acctLines.length;
 
         if (k.note) {
           doc.setFontSize(8);
           doc.setTextColor(100, 116, 139);
-          doc.text(`Note: ${k.note}`, margin + 5, y);
-          y += 4;
+          const noteLines = doc.splitTextToSize(`Note: ${k.note}`, contentWidth - 5);
+          doc.text(noteLines, margin + 5, y);
+          y += 4 * noteLines.length;
         }
 
         doc.setFontSize(8);
         doc.setTextColor(71, 85, 105);
         const keyDisplay = maskKey(k.key_value);
-        doc.text(`Key: ${keyDisplay}`, margin + 5, y);
+        const keyLines = doc.splitTextToSize(`Key: ${keyDisplay}`, contentWidth - 5);
+        doc.text(keyLines, margin + 5, y);
         y += 7;
       }
     }
@@ -216,6 +227,67 @@ export type ImportedData = {
     }>;
   }>;
 };
+
+export function validateImportedData(data: unknown): data is ImportedData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  if (!Array.isArray(d.providers)) return false;
+  for (const p of d.providers) {
+    if (typeof p !== 'object' || p === null) return false;
+    const prov = p as Record<string, unknown>;
+    if (typeof prov.name !== 'string' || !prov.name.trim()) return false;
+    if (prov.dashboard_url !== undefined && typeof prov.dashboard_url !== 'string') return false;
+    if (prov.api_keys !== undefined && !Array.isArray(prov.api_keys)) return false;
+    if (Array.isArray(prov.api_keys)) {
+      for (const k of prov.api_keys) {
+        if (typeof k !== 'object' || k === null) return false;
+        const key = k as Record<string, unknown>;
+        if (typeof key.account_label !== 'string' || !key.account_label.trim()) return false;
+        if (typeof key.key_value !== 'string' || !key.key_value.trim()) return false;
+        if (key.note !== undefined && typeof key.note !== 'string') return false;
+      }
+    }
+  }
+  return true;
+}
+
+export function sanitizeImportedData(data: ImportedData): ImportedData {
+  const seenKeys = new Set<string>();
+  const providers: ImportedData['providers'] = [];
+
+  for (const p of data.providers) {
+    const name = p.name.trim();
+    if (!name) continue;
+
+    const dashboardUrl = p.dashboard_url?.trim() || undefined;
+    const safeUrl = dashboardUrl ? safeHttpUrl(dashboardUrl) : undefined;
+
+    const uniqueKeys: NonNullable<typeof p.api_keys> = [];
+    if (p.api_keys) {
+      for (const k of p.api_keys) {
+        const keyValue = k.key_value.trim();
+        const label = k.account_label.trim();
+        if (!keyValue || !label) continue;
+        const dedupeKey = `${name}:${keyValue}`;
+        if (seenKeys.has(dedupeKey)) continue;
+        seenKeys.add(dedupeKey);
+        uniqueKeys.push({
+          account_label: label,
+          note: k.note?.trim() || undefined,
+          key_value: keyValue,
+        });
+      }
+    }
+
+    providers.push({
+      name,
+      dashboard_url: safeUrl ?? undefined,
+      api_keys: uniqueKeys.length > 0 ? uniqueKeys : undefined,
+    });
+  }
+
+  return { providers };
+}
 
 export function parseCSV(text: string): ImportedData {
   const lines = text.split('\n').filter((l) => l.trim());
@@ -282,11 +354,14 @@ function parseCSVLine(line: string): string[] {
 
 export function parseJSON(text: string): ImportedData {
   const data = JSON.parse(text);
+  if (!validateImportedData(data)) {
+    throw new Error('Invalid JSON schema: expected { providers: [...] } or an array of providers');
+  }
   if (data.providers && Array.isArray(data.providers)) {
-    return { providers: data.providers };
+    return sanitizeImportedData(data);
   }
   if (Array.isArray(data)) {
-    return { providers: data };
+    return sanitizeImportedData({ providers: data });
   }
   return { providers: [] };
 }

@@ -1,3 +1,15 @@
+export function safeHttpUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function maskKey(key: string): string {
   if (key.length <= 8) return '••••••••';
   return `${key.slice(0, 4)}${'•'.repeat(Math.min(24, Math.max(8, key.length - 8)))}${key.slice(-4)}`;

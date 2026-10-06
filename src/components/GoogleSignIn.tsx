@@ -14,7 +14,7 @@ export default function GoogleSignIn({ onSignIn, loading }: Props) {
         </div>
         <h1 className="mb-2 text-3xl font-semibold tracking-tight text-white">API Key Vault</h1>
         <p className="mb-10 max-w-xs text-center text-sm text-zinc-500">
-          Securely store, manage, and test your API keys. Your data is private and isolated.
+          Securely store, manage, and test your API keys. Your data is protected by Supabase Row-Level Security in your private cloud database.
         </p>
 
         <button
@@ -27,7 +27,7 @@ export default function GoogleSignIn({ onSignIn, loading }: Props) {
         </button>
 
         <p className="mt-8 max-w-xs text-center text-xs text-zinc-600">
-          By signing in, your vault is encrypted and only accessible to you.
+          Your vault is protected by Supabase Row-Level Security — only you can access your data.
         </p>
       </div>
     </div>

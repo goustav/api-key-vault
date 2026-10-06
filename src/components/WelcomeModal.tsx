@@ -46,7 +46,7 @@ export default function WelcomeModal({ open, googleName, onSave }: Props) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-[scaleIn_0.25s_ease-out] sm:p-7"
+        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-scaleIn sm:p-7"
       >
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/20 to-emerald-500/20 ring-1 ring-white/10">

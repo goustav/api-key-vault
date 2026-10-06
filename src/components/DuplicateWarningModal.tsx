@@ -18,7 +18,7 @@ export default function DuplicateWarningModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-2xl border border-amber-500/20 bg-zinc-900 p-6 shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+      <div className="relative w-full max-w-sm rounded-2xl border border-amber-500/20 bg-zinc-900 p-6 shadow-2xl animate-scaleIn">
         <div className="mb-4 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
             <AlertTriangle className="h-5 w-5" />

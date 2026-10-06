@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Eye, EyeOff } from 'lucide-react';
 import type { ApiKey } from '@/lib/supabase';
 
 type Props = {
@@ -14,6 +14,7 @@ export default function KeyModal({ open, keyData, providerName, onSave, onClose 
   const [accountLabel, setAccountLabel] = useState('');
   const [note, setNote] = useState('');
   const [keyValue, setKeyValue] = useState('');
+  const [revealKey, setRevealKey] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function KeyModal({ open, keyData, providerName, onSave, onClose 
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-[scaleIn_0.2s_ease-out]"
+        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl animate-scaleIn"
       >
         <div className="mb-5 flex items-center justify-between">
           <div>
@@ -92,13 +93,26 @@ export default function KeyModal({ open, keyData, providerName, onSave, onClose 
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">API Key</label>
-            <input
-              type="text"
-              value={keyValue}
-              onChange={(e) => setKeyValue(e.target.value)}
-              placeholder="sk-..."
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 font-mono text-sm text-white placeholder-zinc-500 transition-colors focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-            />
+            <div className="relative">
+              <input
+                type={revealKey ? 'text' : 'password'}
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+                placeholder="sk-..."
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="off"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 pr-11 font-mono text-sm text-white placeholder-zinc-500 transition-colors focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+              />
+              <button
+                type="button"
+                onClick={() => setRevealKey(!revealKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-zinc-300"
+                title={revealKey ? 'Hide' : 'Reveal'}
+              >
+                {revealKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -43,7 +43,7 @@ export function useAuth() {
         name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
       };
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
@@ -51,11 +51,15 @@ export function useAuth() {
 
       if (!mounted) return;
 
+      // If the profile query fails due to a transient network error,
+      // don't trap existing users in the welcome modal — treat as no profile only on success
+      const hasProfile = !profileErr && profile;
+
       setState({
         user,
-        profile: profile as Profile | null,
+        profile: hasProfile ? (profile as Profile) : null,
         loading: false,
-        needsUsername: !profile,
+        needsUsername: !hasProfile,
       });
     };
 
@@ -78,7 +82,7 @@ export function useAuth() {
           name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
         };
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', authUser.id)
@@ -86,11 +90,13 @@ export function useAuth() {
 
         if (!mounted) return;
 
+        const hasProfile = !profileErr && profile;
+
         setState({
           user,
-          profile: profile as Profile | null,
+          profile: hasProfile ? (profile as Profile) : null,
           loading: false,
-          needsUsername: !profile,
+          needsUsername: !hasProfile,
         });
       })();
     });

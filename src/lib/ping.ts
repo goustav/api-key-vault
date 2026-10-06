@@ -1,5 +1,5 @@
 export type PingResult = {
-  status: 'ok' | 'invalid' | 'network';
+  status: 'ok' | 'invalid' | 'network' | 'rate-limited';
   statusCode: number | null;
   message: string;
 };
@@ -70,6 +70,11 @@ export async function pingApiKey(
       headers[config.authHeader] = apiKey;
     }
 
+    if (config.url.includes('anthropic.com')) {
+      headers['anthropic-version'] = '2023-06-01';
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+    }
+
     const response = await fetch(config.url, {
       method: config.method,
       headers,
@@ -84,6 +89,13 @@ export async function pingApiKey(
         status: 'invalid',
         statusCode: response.status,
         message: response.status === 401 ? 'Invalid key' : 'Forbidden / Revoked',
+      };
+    }
+    if (response.status === 429) {
+      return {
+        status: 'rate-limited',
+        statusCode: 429,
+        message: 'Rate limited — try again later',
       };
     }
     return {

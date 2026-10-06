@@ -67,12 +67,6 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-      <style>{`
-        @keyframes scaleIn {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

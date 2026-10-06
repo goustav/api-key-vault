@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { X, RotateCcw, Trash2, KeyRound, AlertTriangle } from 'lucide-react';
+import { useEffect } from 'react';
+import { X, RotateCcw, Trash2, KeyRound } from 'lucide-react';
 import type { ProviderWithKeys } from '@/lib/supabase';
 
 type Props = {
@@ -23,8 +23,6 @@ export default function TrashModal({
   onEmptyTrash,
   onClose,
 }: Props) {
-  const [confirmEmpty, setConfirmEmpty] = useState(false);
-
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -45,12 +43,12 @@ export default function TrashModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+      <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl animate-scaleIn">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400">
-              <Trash2 className="h-4.5 w-4.5" />
+              <Trash2 className="h-[18px] w-[18px]" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">Recycle Bin</h2>
@@ -85,7 +83,7 @@ export default function TrashModal({
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-500">
-                      <KeyRound className="h-4.5 w-4.5" />
+                      <KeyRound className="h-[18px] w-[18px]" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-sm font-medium text-zinc-300">{provider.name}</h3>
@@ -150,42 +148,16 @@ export default function TrashModal({
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer — single Empty Trash button, confirmation handled by App's ConfirmDialog */}
         {totalItems > 0 && (
           <div className="border-t border-white/10 px-5 py-4">
-            {confirmEmpty ? (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-amber-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>Permanently delete all {totalItems} items?</span>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => setConfirmEmpty(false)}
-                    className="rounded-lg border border-white/10 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
-                  >
-                    No
-                  </button>
-                  <button
-                    onClick={() => {
-                      onEmptyTrash();
-                      setConfirmEmpty(false);
-                    }}
-                    className="rounded-lg bg-red-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-400"
-                  >
-                    Yes, Empty
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmEmpty(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 py-3 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
-              >
-                <Trash2 className="h-4 w-4" />
-                Empty Trash
-              </button>
-            )}
+            <button
+              onClick={onEmptyTrash}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 py-3 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Empty Trash
+            </button>
           </div>
         )}
       </div>

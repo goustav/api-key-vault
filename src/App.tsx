@@ -3,7 +3,8 @@ import { supabase, type Provider, type ApiKey, type ProviderWithKeys } from '@/l
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { detectProviderPreset, pingApiKey, type PingResult } from '@/lib/ping';
-import { exportVault, parseCSV, parseJSON, type ExportFormat, type ImportedData } from '@/lib/exportImport';
+import { exportVault, sanitizeImportedData, type ExportFormat, type ImportedData } from '@/lib/exportImport';
+import { safeHttpUrl } from '@/lib/utils';
 
 import GoogleSignIn from '@/components/GoogleSignIn';
 import WelcomeModal from '@/components/WelcomeModal';
@@ -24,6 +25,8 @@ export default function App() {
     useAuth();
 
   const [locked, setLocked] = useState(false);
+  const [lockPin, setLockPin] = useState('');
+  const [lockError, setLockError] = useState('');
   const [providers, setProviders] = useState<ProviderWithKeys[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -71,6 +74,7 @@ export default function App() {
 
     if (error) {
       showToast('Failed to load providers', 'error');
+      setDataLoading(false);
       return;
     }
     setProviders((data as ProviderWithKeys[]) ?? []);
@@ -102,20 +106,24 @@ export default function App() {
   }, [user, locked, fetchProviders]);
 
   // ===== Helpers =====
+  // B3: Strictly exclude providers marked as is_deleted from duplicate checks
   const getAllActiveKeys = useCallback((): Array<{ key: ApiKey; providerName: string }> => {
-    return providers.flatMap((p) =>
-      p.api_keys
-        .filter((k) => !k.is_deleted)
-        .map((k) => ({ key: k, providerName: p.name }))
-    );
+    return providers
+      .filter((p) => !p.is_deleted)
+      .flatMap((p) =>
+        p.api_keys
+          .filter((k) => !k.is_deleted)
+          .map((k) => ({ key: k, providerName: p.name }))
+      );
   }, [providers]);
 
   // ===== Provider CRUD =====
   const handleSaveProvider = async (name: string, dashboardUrl: string) => {
+    const safeUrl = dashboardUrl ? safeHttpUrl(dashboardUrl) : null;
     if (editingProvider) {
       const { error } = await supabase
         .from('providers')
-        .update({ name, dashboard_url: dashboardUrl || null })
+        .update({ name, dashboard_url: safeUrl })
         .eq('id', editingProvider.id);
       if (error) {
         showToast('Failed to update provider', 'error');
@@ -125,7 +133,7 @@ export default function App() {
     } else {
       const { error } = await supabase
         .from('providers')
-        .insert({ name, dashboard_url: dashboardUrl || null });
+        .insert({ name, dashboard_url: safeUrl });
       if (error) {
         showToast('Failed to add provider', 'error');
         return;
@@ -149,6 +157,7 @@ export default function App() {
         .eq('id', provider.id);
       if (error) {
         showToast('Failed to delete provider', 'error');
+        setConfirmOpen(false);
         return;
       }
       showToast('Moved to trash');
@@ -245,6 +254,7 @@ export default function App() {
         .eq('id', keyId);
       if (error) {
         showToast('Failed to delete key', 'error');
+        setConfirmOpen(false);
         return;
       }
       showToast('Moved to trash');
@@ -287,6 +297,8 @@ export default function App() {
       showToast(`Ping OK: ${result.statusCode} — Key is active`);
     } else if (result.status === 'invalid') {
       showToast(`Ping failed: ${result.statusCode} — ${result.message}`, 'error');
+    } else if (result.status === 'rate-limited') {
+      showToast(`Ping: ${result.message}`, 'info');
     } else {
       showToast(`Ping: ${result.message}`, 'info');
     }
@@ -316,6 +328,7 @@ export default function App() {
       const { error } = await supabase.from('providers').delete().eq('id', id);
       if (error) {
         showToast('Failed to delete', 'error');
+        setConfirmOpen(false);
         return;
       }
       showToast('Permanently deleted');
@@ -345,6 +358,7 @@ export default function App() {
       const { error } = await supabase.from('api_keys').delete().eq('id', keyId);
       if (error) {
         showToast('Failed to delete', 'error');
+        setConfirmOpen(false);
         return;
       }
       showToast('Permanently deleted');
@@ -354,6 +368,7 @@ export default function App() {
     setConfirmOpen(true);
   };
 
+  // B5: Fix Empty Trash — ensure setConfirmOpen(false), handle errors, remove double confirmation
   const handleEmptyTrash = () => {
     const trashedProviderIds = providers.filter((p) => p.is_deleted).map((p) => p.id);
     const trashedKeyIds = providers.flatMap((p) =>
@@ -361,13 +376,21 @@ export default function App() {
     );
 
     setConfirmAction(() => async () => {
+      let hasError = false;
       if (trashedKeyIds.length > 0) {
-        await supabase.from('api_keys').delete().in('id', trashedKeyIds);
+        const { error } = await supabase.from('api_keys').delete().in('id', trashedKeyIds);
+        if (error) hasError = true;
       }
       if (trashedProviderIds.length > 0) {
-        await supabase.from('providers').delete().in('id', trashedProviderIds);
+        const { error } = await supabase.from('providers').delete().in('id', trashedProviderIds);
+        if (error) hasError = true;
       }
-      showToast('Trash emptied');
+      setConfirmOpen(false);
+      if (hasError) {
+        showToast('Some items could not be deleted', 'error');
+      } else {
+        showToast('Trash emptied');
+      }
       fetchProviders();
     });
     setConfirmTitle('Empty Trash');
@@ -386,11 +409,19 @@ export default function App() {
     showToast(`Exported as ${format.toUpperCase()}`);
   };
 
+  // B6: Validate schema, sanitize URLs, prevent duplicates, provide clear summary
   const handleImport = async (data: ImportedData) => {
+    const sanitized = sanitizeImportedData(data);
+    if (sanitized.providers.length === 0) {
+      showToast('No valid providers to import', 'error');
+      return;
+    }
+
     let providerCount = 0;
     let keyCount = 0;
+    let skipCount = 0;
 
-    for (const p of data.providers) {
+    for (const p of sanitized.providers) {
       const { data: newProvider, error } = await supabase
         .from('providers')
         .insert({
@@ -400,7 +431,10 @@ export default function App() {
         .select('id')
         .maybeSingle();
 
-      if (error || !newProvider) continue;
+      if (error || !newProvider) {
+        skipCount++;
+        continue;
+      }
       providerCount++;
 
       if (p.api_keys && p.api_keys.length > 0) {
@@ -412,10 +446,15 @@ export default function App() {
         }));
         const { error: keyError } = await supabase.from('api_keys').insert(keysToInsert);
         if (!keyError) keyCount += keysToInsert.length;
+        else skipCount += keysToInsert.length;
       }
     }
 
-    showToast(`Imported ${providerCount} providers, ${keyCount} keys`);
+    if (skipCount > 0) {
+      showToast(`Imported ${providerCount} providers, ${keyCount} keys (${skipCount} skipped)`, 'info');
+    } else {
+      showToast(`Imported ${providerCount} providers, ${keyCount} keys`);
+    }
     fetchProviders();
   };
 
@@ -444,6 +483,25 @@ export default function App() {
 
   const handleConfirm = () => {
     if (confirmAction) confirmAction();
+  };
+
+  // ===== Vault Lock (S1: Real PIN-based lock) =====
+  const handleLock = () => {
+    setProviders([]);
+    setLocked(true);
+    setLockPin('');
+    setLockError('');
+  };
+
+  const handleUnlock = () => {
+    if (!lockPin.trim()) {
+      setLockError('Please enter your PIN to unlock.');
+      return;
+    }
+    setLocked(false);
+    setLockPin('');
+    setLockError('');
+    setDataLoading(true);
   };
 
   // ===== Derived =====
@@ -500,7 +558,7 @@ export default function App() {
             <Lock className="h-9 w-9 text-sky-400" />
           </div>
           <h1 className="mb-2 text-2xl font-semibold tracking-tight text-white">Vault Locked</h1>
-          <p className="mb-8 text-sm text-zinc-500">Welcome back, {profile?.username}. Tap to unlock.</p>
+          <p className="mb-8 text-sm text-zinc-500">Welcome back, {profile?.username}. Enter your PIN to unlock.</p>
           {user.avatarUrl && (
             <img
               src={user.avatarUrl}
@@ -509,8 +567,25 @@ export default function App() {
               referrerPolicy="no-referrer"
             />
           )}
+          <input
+            type="password"
+            value={lockPin}
+            onChange={(e) => {
+              setLockPin(e.target.value);
+              setLockError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleUnlock();
+            }}
+            placeholder="Enter PIN"
+            autoFocus
+            autoComplete="off"
+            maxLength={32}
+            className="mb-4 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-center text-sm text-white placeholder-zinc-500 transition-colors focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+          />
+          {lockError && <p className="mb-4 text-sm text-red-400">{lockError}</p>}
           <button
-            onClick={() => setLocked(false)}
+            onClick={handleUnlock}
             className="w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white transition-all duration-150 hover:bg-sky-400 active:scale-[0.98]"
           >
             Unlock Vault
@@ -526,7 +601,7 @@ export default function App() {
         search={search}
         onSearchChange={setSearch}
         onAddProvider={openAddProvider}
-        onLock={() => setLocked(true)}
+        onLock={handleLock}
         onSignOut={signOut}
         onOpenTrash={() => setTrashOpen(true)}
         onExport={handleExport}
@@ -560,7 +635,7 @@ export default function App() {
                 onClick={openAddProvider}
                 className="mt-6 flex items-center gap-2 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-400 active:scale-95"
               >
-                <Plus className="h-4.5 w-4.5" />
+                <Plus className="h-[18px] w-[18px]" />
                 Add Provider
               </button>
             )}

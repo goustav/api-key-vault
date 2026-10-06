@@ -1,17 +1,22 @@
 export type SnippetLanguage = 'python' | 'javascript' | 'curl';
 
+function sanitizeKey(key: string): string {
+  return key.replace(/"/g, '\\"').replace(/\\/g, '\\\\');
+}
+
 export function generateSnippet(
   language: SnippetLanguage,
   apiKey: string,
   providerName: string
 ): string {
+  const safeKey = sanitizeKey(apiKey);
   switch (language) {
     case 'python':
-      return generatePython(apiKey, providerName);
+      return generatePython(safeKey, providerName);
     case 'javascript':
-      return generateJavaScript(apiKey, providerName);
+      return generateJavaScript(safeKey, providerName);
     case 'curl':
-      return generateCurl(apiKey, providerName);
+      return generateCurl(safeKey, providerName);
   }
 }
 
@@ -50,13 +55,51 @@ message = client.messages.create(
 
 print(message.content[0].text)`;
   }
+  if (lower.includes('openrouter')) {
+    return `import requests
+
+API_KEY = "${apiKey}"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+response = requests.get(
+    "https://openrouter.ai/api/v1/auth/key",
+    headers=HEADERS
+)
+
+print(response.status_code)
+print(response.json())`;
+  }
+  if (lower.includes('groq')) {
+    return `from groq import Groq
+
+client = Groq(api_key="${apiKey}")
+
+response = client.chat.completions.create(
+    model="llama-3.3-70b-versatile",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+print(response.choices[0].message.content)`;
+  }
+  if (lower.includes('mistral')) {
+    return `from mistralai import Mistral
+
+client = Mistral(api_key="${apiKey}")
+
+response = client.chat.complete(
+    model="mistral-large-latest",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+print(response.choices[0].message.content)`;
+  }
   return `import requests
 
 API_KEY = "${apiKey}"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 response = requests.get(
-    "https://api.example.com/v1/models",
+    "https://api.together.xyz/v1/models",
     headers=HEADERS
 )
 
@@ -95,7 +138,35 @@ const message = await client.messages.create({
 
 console.log(message.content[0].text);`;
   }
-  return `const response = await fetch("https://api.example.com/v1/models", {
+  if (lower.includes('openrouter')) {
+    return `const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "openai/gpt-4o",
+    messages: [{ role: "user", content: "Hello!" }],
+  }),
+});
+
+const data = await response.json();
+console.log(data);`;
+  }
+  if (lower.includes('groq')) {
+    return `import Groq from "groq-sdk";
+
+const client = new Groq({ apiKey: "${apiKey}" });
+
+const response = await client.chat.completions.create({
+  model: "llama-3.3-70b-versatile",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+console.log(response.choices[0].message.content);`;
+  }
+  return `const response = await fetch("https://api.together.xyz/v1/models", {
   headers: {
     "Authorization": "Bearer ${apiKey}",
   },
@@ -115,6 +186,42 @@ function generateCurl(apiKey: string, providerName: string): string {
   -d '{
     "model": "claude-sonnet-4-20250514",
     "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`;
+  }
+  if (lower.includes('openrouter')) {
+    return `curl https://openrouter.ai/api/v1/chat/completions \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "openai/gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`;
+  }
+  if (lower.includes('groq')) {
+    return `curl https://api.groq.com/openai/v1/chat/completions \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "llama-3.3-70b-versatile",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`;
+  }
+  if (lower.includes('mistral')) {
+    return `curl https://api.mistral.ai/v1/chat/completions \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "mistral-large-latest",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`;
+  }
+  if (lower.includes('together')) {
+    return `curl https://api.together.xyz/v1/chat/completions \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'`;
   }

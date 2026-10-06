@@ -20,8 +20,7 @@ export default function ToastContainer({ toasts, onDismiss }: Props) {
         return (
           <div
             key={toast.id}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/95 px-4 py-3 shadow-2xl backdrop-blur-md animate-[slideIn_0.25s_ease-out]"
-            style={{ animationName: 'slideIn' }}
+            className="flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/95 px-4 py-3 shadow-2xl backdrop-blur-md animate-slideIn"
           >
             <Icon className={`h-5 w-5 shrink-0 ${accent}`} />
             <span className="text-sm text-zinc-100">{toast.message}</span>
